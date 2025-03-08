@@ -10,14 +10,10 @@ secret_name: 'secret'
 secret: '{{ secret_root + "/" + secret_name }}'
 encfs_password: "{{ lookup('password', secret + '/' + 'encfs_password', length=32) }}"
 
-
-# let's encrypt
-letsencrypt_server: "https://acme-v01.api.letsencrypt.org/directory"
-
 # ssh
 kex_algorithms: "diffie-hellman-group-exchange-sha256"
 ciphers: "aes256-ctr,aes192-ctr,aes128-ctr"
-macs: "hmac-sha2-512,hmac-sha2-256,hmac-ripemd160"
+macs: "hmac-sha2-512,hmac-sha2-256"
 
 # ntp
 ntp_servers:
