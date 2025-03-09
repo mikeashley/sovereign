@@ -65,22 +65,26 @@
     name: en_US.UTF-8
     state: present
 
-- include: encfs.yml
-  tags: encfs
-- include: users.yml
+- import_tasks: users.yml
   tags: users
-- include: apache.yml
+- import_tasks: encfs.yml
+  tags: encfs
+- import_tasks: apache.yml
   tags: apache
-- include: ssl.yml
-  tags: ssl
-- include: letsencrypt.yml
-  tags: letsencrypt
-- include: ufw.yml
+
+# May not need any of ssl.yml if LetsEncrypt does its thing
+# - import_tasks: ssl.yml
+#   tags: ssl
+#
+# Need domain stuff fixed before I can check this
+# - import_tasks: letsencrypt.yml
+#   tags: certbot
+  
+- import_tasks: ufw.yml
   tags: ufw
-- include: security.yml
+- import_tasks: security.yml
   tags: security
-- include: ntp.yml
-  tags: ntp
-- include: google_auth.yml
+- import_tasks: google_auth.yml
   tags: google_auth
-- include: postgres.yml
+- import_tasks: postgres.yml
+  tags: postgres
