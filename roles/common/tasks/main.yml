@@ -23,6 +23,7 @@
     - iotop
     - molly-guard
     - mosh
+    - ntp
     - python3-software-properties
     - ruby
     - screen
