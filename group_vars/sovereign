@@ -39,6 +39,10 @@ mail_virtual_aliases:
 # common_timezone will be used in the common and mailserver roles
 common_timezone: 'Etc/UTC'
 
+# postgres
+db_admin_username: 'postgres'
+db_admin_password: TODO
+
 # znc
 irc_nick: (required)
 irc_ident: (required)
