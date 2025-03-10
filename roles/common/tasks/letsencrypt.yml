@@ -27,4 +27,6 @@
   command: snap connect certbot:plugin certbot-dns-multi
 
 # Here's a version for noninteractive (automated, non-manual)
-# certbot --apache -n -m "{user}@{domain}" --no-eff-email -d "*.{domain}" -d "{domain}" --agree-tos
+certbot run -v -n -m "{user}@{domain}" --no-eff-email -agree-tos -i apache -a dns-multi --dns-multi-credentials /etc/letsencrypt/dns-multi.ini -d "*.{domain}" -d "{domain}"
+
+certbot run -v -m "{user}@{domain}" -i apache -a dns-multi --dns-multi-credentials /etc/letsencrypt/dns-multi.ini -d "*.{domain}" -d "{domain}"
