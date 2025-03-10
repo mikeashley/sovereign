@@ -8,18 +8,17 @@ action    = %(action_)s
 # JAILS
 [sshd]
 enabled   = true
+mode      = ddos
 maxretry  = 3
 
 [pam-generic]
 enabled   = true
 banaction = iptables-allports
 
-[sshd-ddos]
-enabled   = true
-
 [postfix]
 enabled  = true
 maxretry = 1
+logpath = /var/log/postfix.log
 
 [dovecot]
 enabled = true
