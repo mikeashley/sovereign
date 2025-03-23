@@ -12,6 +12,11 @@ organization: (required)
 # fail2ban reports will be sent to this address
 admin_email: "{{ main_user_name }}@{{ domain }}"
 
+# password stashing
+secret_root: '{{ inventory_dir | realpath }}'
+secret_name: 'secret'
+secret: '{{ secret_root + "/" + secret_name }}'
+
 # mail
 mail_virtual_domains:
   - name: "{{ domain }}"
@@ -40,8 +45,8 @@ mail_virtual_aliases:
 common_timezone: 'Etc/UTC'
 
 # postgres
+# do not change. this is the admin user name set up by postgres
 db_admin_username: 'postgres'
-db_admin_password: TODO
 
 # znc
 irc_nick: (required)
