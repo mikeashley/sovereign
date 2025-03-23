@@ -8,14 +8,6 @@
 - name: Ensure snapd is installed
   snap: name=snapd state=present
 
-- name: Create symlink to ensure certbot is accessible
-  file: src=/snap/bin/certbot dest=/usr/bin/certbot state=link
-
-- name: Install certbot DNS plugin to automate generation of wildcard certificate
-  snap:
-    name: certbot-dns-multi
-    state: present
-
 - name: Install certbot
   snap:
     name: certbot
@@ -23,10 +15,9 @@
     options:
     - trust-plugin-with-root=ok
 
-- name: Connect the DNS plugin to certbot
-  command: snap connect certbot:plugin certbot-dns-multi
+- name: Create symlink to ensure certbot is accessible
+  file: src=/snap/bin/certbot dest=/usr/bin/certbot state=link
 
-# Here's a version for noninteractive (automated, non-manual)
-certbot run -v -n -m "{user}@{domain}" --no-eff-email -agree-tos -i apache -a dns-multi --dns-multi-credentials /etc/letsencrypt/dns-multi.ini -d "*.{domain}" -d "{domain}"
-
-certbot run -v -m "{user}@{domain}" -i apache -a dns-multi --dns-multi-credentials /etc/letsencrypt/dns-multi.ini -d "*.{domain}" -d "{domain}"
+- name: Get a certificate
+  command: certbot run -n -m "{{ main_user_name }}@{{ domain }}" --no-eff-email --agree-tos --apache -d "www.{{ domain }}"
+    creates=/etc/apache2/sites-available/000-default-le-ssl.conf

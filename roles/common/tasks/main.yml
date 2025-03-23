@@ -71,15 +71,8 @@
   tags: encfs
 - import_tasks: apache.yml
   tags: apache
-
-# May not need any of ssl.yml if LetsEncrypt does its thing
-# - import_tasks: ssl.yml
-#   tags: ssl
-#
-# Need domain stuff fixed before I can check this
-# - import_tasks: letsencrypt.yml
-#   tags: certbot
-  
+- import_tasks: letsencrypt.yml
+  tags: certbot
 - import_tasks: ufw.yml
   tags: ufw
 - import_tasks: security.yml
