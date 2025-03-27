@@ -15,11 +15,44 @@
 - name: Ensure fail2ban is started
   service: name=fail2ban state=started
 
-# TODO: check and update. Is this smashing anything unintentionally. Can we
-# do this with lineinfile or some other way that's less of a hammer
-# - name: Update sshd config for PFS and more secure defaults
-#   template: src=etc_ssh_sshd_config.j2 dest=/etc/ssh/sshd_config
-#   notify: restart ssh
+- name: Update sshd config to update login grace time
+  lineinfile: dest=/etc/ssh/sshd_config
+              regexp=^#LoginGraceTime
+              line="LoginGraceTime 2m"
+              state=present
+  notify: restart ssh
+
+- name: Update sshd config to disable root login
+  lineinfile: dest=/etc/ssh/sshd_config
+              regexp=^PermitRootLogin
+              line="PermitRootLogin no"
+              state=present
+  notify: restart ssh
+
+- name: Update sshd config to turn on strict modes
+  lineinfile: dest=/etc/ssh/sshd_config
+              regexp=^#StrictModes
+              line="StrictModes yes"
+              state=present
+  notify: restart ssh
+
+- name: Update sshd config to specify Kex algorithms to use
+  lineinfile: dest=/etc/ssh/sshd_config
+              line="KexAlgorithms {{ kex_algorithms }}"
+              state=present
+  notify: restart ssh
+
+- name: Update sshd config to specify ciphers to use
+  lineinfile: dest=/etc/ssh/sshd_config
+              line="Ciphers {{ ciphers }}"
+              state=present
+  notify: restart ssh
+
+- name: Update sshd config to specify MACs to use
+  lineinfile: dest=/etc/ssh/sshd_config
+              line="MACs {{ macs }}"
+              state=present
+  notify: restart ssh
 
 # TODO: check this and update config if necessary. Looks like it sets ciphers,
 # kex, and MACs similar to what's done for sshd.
