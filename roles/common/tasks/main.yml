@@ -51,9 +51,15 @@
   command: dpkg-reconfigure --frontend noninteractive tzdata
   when: common_timezone_config.changed
 
-# TODO: check this
-# - name: Apticron email configuration
-#   template: src=apticron.conf.j2 dest=/etc/apticron/apticron.conf
+- name: Apticron configuration
+  lineinfile:
+    path: /etc/apticron/apticron.conf
+    line: NOTIFY_NEW="0"
+    owner: root
+    group: root
+    mode: '0644'
+    create: yes
+  tags: apticron
 
 - name: Create decrypted directory (even if encfs isn't used)
   file: state=directory path=/decrypted
