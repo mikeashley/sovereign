@@ -34,6 +34,7 @@
 - name: Retrieve generated keys from server
   fetch: src=/home/{{ main_user_name }}/.google_authenticator
          dest=/tmp/sovereign-google-auth-files
+         validate_checksum=no
   when: ansible_ssh_user != "vagrant"
 
 - pause: seconds=5
