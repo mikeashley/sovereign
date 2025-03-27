@@ -15,46 +15,39 @@
 - name: Ensure fail2ban is started
   service: name=fail2ban state=started
 
-- name: Update sshd config to update login grace time
-  lineinfile: dest=/etc/ssh/sshd_config
-              regexp=^#LoginGraceTime
-              line="LoginGraceTime 2m"
-              state=present
+- name: Update sshd config
+  blockinfile:
+    path: /etc/ssh/sshd_config
+    insertbefore: \Z
+    prepend_newline: true
+    append_newline: true
+    block: |
+      LoginGraceTime 2m
+      PermitRootLogin no
+      StrictModes yes
+      KexAlgorithms {{ kex_algorithms }}
+      Ciphers {{ ciphers }}
+      MACs {{ macs }}
   notify: restart ssh
 
-- name: Update sshd config to disable root login
-  lineinfile: dest=/etc/ssh/sshd_config
-              regexp=^PermitRootLogin
-              line="PermitRootLogin no"
-              state=present
-  notify: restart ssh
+- name: Update ssh config with how to get to github
+  blockinfile:
+    path: /etc/ssh/ssh_config
+    marker: "# {mark} ANSIBLE MANAGED BLOCK FOR GITHUB"
+    insertbefore: ^Host\s\*
+    prepend_newline: true
+    append_newline: true
+    block: |
+      Host github.com
+        KexAlgorithms {{ kex_algorithms }},diffie-hellman-group-exchange-sha1,diffie-hellman-group14-sha1
 
-- name: Update sshd config to turn on strict modes
-  lineinfile: dest=/etc/ssh/sshd_config
-              regexp=^#StrictModes
-              line="StrictModes yes"
-              state=present
-  notify: restart ssh
-
-- name: Update sshd config to specify Kex algorithms to use
-  lineinfile: dest=/etc/ssh/sshd_config
-              line="KexAlgorithms {{ kex_algorithms }}"
-              state=present
-  notify: restart ssh
-
-- name: Update sshd config to specify ciphers to use
-  lineinfile: dest=/etc/ssh/sshd_config
-              line="Ciphers {{ ciphers }}"
-              state=present
-  notify: restart ssh
-
-- name: Update sshd config to specify MACs to use
-  lineinfile: dest=/etc/ssh/sshd_config
-              line="MACs {{ macs }}"
-              state=present
-  notify: restart ssh
-
-# TODO: check this and update config if necessary. Looks like it sets ciphers,
-# kex, and MACs similar to what's done for sshd.
-# - name: Update ssh config for more secure defaults
-#   template: src=etc_ssh_ssh_config.j2 dest=/etc/ssh/ssh_config
+- name: Update ssh config for defaults
+  blockinfile:
+    path: /etc/ssh/ssh_config
+    marker: "# {mark} ANSIBLE MANAGED BLOCK FOR DEFAULT"
+    insertbefore: \Z
+    prepend_newline: true
+    block: |
+      Host *
+        Ciphers {{ ciphers }}
+        KexAlgorithms {{ kex_algorithms }}
