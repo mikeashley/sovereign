@@ -11,9 +11,9 @@
 - name: Install certbot
   snap:
     name: certbot
+    classic: true
     state: present
     options:
-    - classic=true
     - trust-plugin-with-root=ok
 
 - name: Create symlink to ensure certbot is accessible
