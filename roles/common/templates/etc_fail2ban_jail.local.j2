@@ -1,9 +1,8 @@
 [DEFAULT]
 ignoreip  = 127.0.0.1 {{ ansible_default_ipv4.address }} {{ ' '.join(friendly_networks) }}
 bantime   = 86400
+backend   = systemd
 destemail = {{ admin_email }}
-banaction = iptables-multiport
-action    = %(action_)s
 
 # JAILS
 [sshd]
@@ -18,13 +17,10 @@ banaction = iptables-allports
 [postfix]
 enabled  = true
 maxretry = 1
-logpath = /var/log/postfix.log
 
 [dovecot]
 enabled = true
-filter = dovecot
 action = iptables-multiport[name=dovecot, port="pop3,imap,993,995", protocol=tcp]
-logpath = /var/log/mail.log
 maxretry = 20
 findtime = 1200
 bantime = 1200
