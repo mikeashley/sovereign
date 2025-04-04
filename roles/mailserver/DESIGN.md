@@ -7,14 +7,14 @@ only milter used.
 
 Mail delivery looks like this:
 
-  Remote MTA -> Rspamd (milter) -> Postfix -> Rspamd (rspamc) -> Dovecot -> user mailbox
+  Postfix -> Rspamd (milter) -> Postfix -> Dovecot -> user mailbox
 
 Mail from the remote MTA is received by Postfix and run through
 Rspamd.  Greylisting and rejects happen in this pipeline.  Once
-Postfix receives the message, it is sent to Dovecot over LMTP.
-Dovecot uses the antispam module to run rspamc (employing Rspamd).
-The sieve module is finally used to process headers added by Rspamd or
-any other milters.
+Postfix receives the message back from Rspamd, it is sent to Dovecot
+over LMTP.  Dovecot uses the antispam module to run rspamc (employing
+Rspamd).  The sieve module is finally used to process headers added by
+Rspamd or any other milters.
 
 ## Mail filters
 
