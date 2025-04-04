@@ -19,7 +19,7 @@
 - name: Update sshd config
   blockinfile:
     path: /etc/ssh/sshd_config
-    insertbefore: \Z
+    insertafter: EOF
     prepend_newline: true
     append_newline: true
     block: |
@@ -46,7 +46,7 @@
   blockinfile:
     path: /etc/ssh/ssh_config
     marker: "# {mark} ANSIBLE MANAGED BLOCK FOR DEFAULT"
-    insertbefore: \Z
+    insertafter: EOF
     prepend_newline: true
     block: |
       Host *
