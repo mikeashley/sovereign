@@ -8,14 +8,22 @@ domain: (required)
 main_user_name: (required)
 organization: (required)
 
-# admin email
-# fail2ban reports will be sent to this address
-admin_email: "{{ main_user_name }}@{{ domain }}"
-
-# password stashing
+# password storage
 secret_root: '{{ inventory_dir | realpath }}'
 secret_name: 'secret'
 secret: '{{ secret_root + "/" + secret_name }}'
+
+# timezone
+# common_timezone will be used in the common and mailserver roles
+common_timezone: 'Etc/UTC'
+
+# postgres
+# do not change. this is the admin user name set up by postgres
+db_admin_username: 'postgres'
+
+# admin email
+# fail2ban reports will be sent to this address
+admin_email: "{{ main_user_name }}@{{ domain }}"
 
 # mail
 mail_virtual_domains:
@@ -39,14 +47,6 @@ mail_virtual_aliases:
   - source: "abuse@{{ domain }}"
     destination: "{{ admin_email }}"
     domain_pk_id: 1
-
-# timezone
-# common_timezone will be used in the common and mailserver roles
-common_timezone: 'Etc/UTC'
-
-# postgres
-# do not change. this is the admin user name set up by postgres
-db_admin_username: 'postgres'
 
 # znc
 irc_nick: (required)
