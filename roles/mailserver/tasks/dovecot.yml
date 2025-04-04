@@ -1,18 +1,13 @@
 - name: Install Dovecot and related packages
-  apt: pkg={{ item }} update_cache=yes state=installed
+  apt: pkg={{ item }} update_cache=yes state=present
   with_items:
     - dovecot-core
     - dovecot-imapd
     - dovecot-lmtpd
-    - dovecot-managesieved
     - dovecot-pgsql
     - dovecot-pop3d
+    - dovecot-managesieved
     - dovecot-antispam
-  tags:
-    - dependencies
-
-- name: Install Postgres for Dovecot
-  apt: pkg=postgresql state=present
   tags:
     - dependencies
 
@@ -30,49 +25,296 @@
   file: state=directory path=/decrypted/{{ item.domain }}/{{ item.account }} owner=vmail group=dovecot
   with_items: '{{ mail_virtual_users }}'
 
-- name: Copy dovecot.conf into place
-  copy: src=etc_dovecot_dovecot.conf dest=/etc/dovecot/dovecot.conf
+- name: Configure protocols
+  blockinfile:
+    path: /etc/dovecot/dovecot.conf
+    marker: "# {mark} ANSIBLE - Protocol configuration"
+    prepend_newline: true
+    insertafter: EOF
+    block: |
+      protocols = imap lmtp sieve pop3
+  notify: restart postfix
+
+- name: Configure dovecot SSL settings
+  blockinfile:
+    path: /etc/dovecot/conf.d/10-ssl.conf
+    marker: "# {mark} ANSIBLE - Configuration"
+    prepend_newline: true
+    insertafter: EOF
+    block: |
+      ssl = required
+      ssl_cert = /etc/letsencrypt/live/mail.{{ domain }}/fullchain.pem
+      ssl_key = /etc/letsencrypt/live/mail.{{ domain }}/privkey.pem
+      ssl_min_protocol = TLSv1.2
+  notify: restart dovecot
+
+- name: Configure dovecot mail settings
+  blockinfile:
+    path: /etc/dovecot/conf.d/10-mail.conf
+    marker: "# {mark} ANSIBLE - Configuration"
+    prepend_newline: true
+    insertafter: EOF
+    block: |
+      mail_location = maildir:/decrypted/%d/%n/Maildir
+      namespace inbox {
+        inbox = yes
+      }
+      first_valid_uid = 0
+  notify: restart dovecot
+
+- name: Configure dovecot master settings
+  blockinfile:
+    path: /etc/dovecot/conf.d/10-master.conf
+    marker: "# {mark} ANSIBLE - Configuration"
+    prepend_newline: true
+    insertafter: EOF
+    block: |
+      default_internal_user = vmail
+      
+      service imap-login {
+        inet_listener imap {
+          port = 0
+        }
+      
+        inet_listener imaps {
+        }
+      }
+      
+      service pop3-login {
+        inet_listener pop3 {
+          port = 0
+        }
+      
+        inet_listener pop3s {
+        }
+      }
+      
+      service lmtp {
+        unix_listener /var/spool/postfix/private/dovecot-lmtp {
+          mode = 0666
+          group = postfix
+          user = postfix
+        }
+
+        user = vmail
+      }
+      
+      service imap {
+      }
+      
+      service pop3 {
+      }
+      
+      service auth {
+        unix_listener /var/spool/postfix/private/auth {
+          mode = 0666
+          user = postfix
+          group = postfix
+        }
+
+        unix_listener auth-userdb {
+          mode = 0660
+          user = vmail
+          group = vmail
+        }
+        user = vmail
+      }
+      
+      service auth-worker {
+        unix_listener auth-worker {
+          user = vmail # same as above, mode and group are supported too
+        }
+      }
+      
+      service dict {
+        unix_listener dict {
+        }
+      }
+  notify: restart dovecot
+
+- name: Configure dovecot LDA settings
+  blockinfile:
+    path: /etc/dovecot/conf.d/15-lda.conf
+    marker: "# {mark} ANSIBLE - Configuration"
+    prepend_newline: true
+    insertafter: EOF
+    block: |
+      postmaster_address = postmaster@{{domain}}
+      hostname = {{ mail_server_hostname }}
+  notify: restart dovecot
+
+- name: Configure dovecot IMAP settings
+  blockinfile:
+    path: /etc/dovecot/conf.d/20-imap.conf
+    marker: "# {mark} ANSIBLE - Configuration"
+    prepend_newline: true
+    insertafter: EOF
+    block: |
+      protocol lmtp {
+        postmaster_address = postmaster@{{ domain }}
+      }
+  notify: restart dovecot
+
+- name: Configure dovecot auth settings
+  blockinfile:
+    path: /etc/dovecot/conf.d/10-auth.conf
+    marker: "# {mark} ANSIBLE - Configuration"
+    prepend_newline: true
+    insertafter: EOF
+    block: |
+      disable_plaintext_auth = yes
+      !include auth-sql.conf.ext
+  notify: restart dovecot
+
+- name: Configure dovecot auth-sql settings
+  blockinfile:
+    path: /etc/dovecot/conf.d/auth-sql.conf.ext
+    marker: "# {mark} ANSIBLE - Configuration"
+    prepend_newline: true
+    insertafter: EOF
+    block: |
+      passdb {
+        driver = sql
+        args = /etc/dovecot/dovecot-sql.conf.ext
+      }
+      userdb {
+        driver = static
+        args = uid=vmail gid=vmail home=/decrypted/%d/%n
+      }
+  notify: restart dovecot
+
+- name: Configure dovecot SQL settings
+  blockinfile:
+    path: /etc/dovecot/dovecot-sql.conf.ext
+    marker: "# {mark} ANSIBLE - Configuration"
+    prepend_newline: true
+    insertafter: EOF
+    block: |
+      driver = pgsql
+      connect = "host=127.0.0.1 dbname={{ mail_db_database }} user={{ mail_db_username }} password='{{ mail_db_password }}'"
+      default_pass_scheme = SHA512-CRYPT
+      password_query = SELECT email AS user, password FROM virtual_users WHERE email = '%u';
+  notify: restart dovecot
 
 - name: Create before.d sieve scripts directory
-  file: path=/etc/dovecot/sieve/before.d state=directory owner=vmail group=dovecot recurse=yes mode=0770
+  file: path=/etc/dovecot/sieve/before.d state=directory owner=vmail group=dovecot mode=0770
+  notify: restart dovecot
+
+- name: Configure dovecot sieve settings
+  blockinfile:
+    path: /etc/dovecot/conf.d/90-sieve.conf
+    marker: "# {mark} ANSIBLE - Configuration"
+    prepend_newline: true
+    insertafter: EOF
+    block: |
+      protocol lmtp {
+        mail_plugins = $mail_plugins sieve
+      }
+      protocol lda {
+        mail_plugins = $mail_plugins sieve
+      }
+      plugin {
+        sieve = file:~/sieve;active=~/.dovecot.sieve
+        sieve_before = /etc/dovecot/sieve/before.d
+      }
   notify: restart dovecot
 
 - name: Configure sieve script moving spam into Junk folder
-  copy: src=etc_dovecot_sieve_before.d_no-spam.sieve dest=/etc/dovecot/sieve/before.d/no-spam.sieve owner=vmail group=dovecot
+  copy:
+    dest: /etc/dovecot/sieve/before.d/no-spam.sieve
+    content: |
+      require "fileinto";
+      require "imap4flags";
+      
+      if header :is "X-Spam" "Yes" {
+          setflag "\\seen";
+          fileinto "Junk";
+          stop;
+      }
+    owner: vmail
+    group: dovecot
+    mode: '0444'
   notify: restart dovecot
 
-- name: Copy additional Dovecot configuration files in place
-  copy: src=etc_dovecot_conf.d_{{ item }} dest=/etc/dovecot/conf.d/{{ item }}
-  with_items:
-    - 10-auth.conf
-    - 10-mail.conf
-    - 10-master.conf
-    - 90-antispam.conf
-    - 90-plugin.conf
-    - 90-sieve.conf
-    - auth-sql.conf.ext
+- name: Collect directores in Dovecot's configuration
+  find:
+    paths: /etc/dovecot
+    file_type: directory
+  register: found_dirs
+
+- name: Set permissions for directories
+  file:
+    path: "{{ item.path }}"
+    owner: vmail
+    group: dovecot
+    mode: '0770'
+  loop: "{{ found_dirs.files }}"
   notify: restart dovecot
 
-- name: Template 10-ssl.conf
-  template: src=etc_dovecot_conf.d_10-ssl.conf.j2 dest=/etc/dovecot/conf.d/10-ssl.conf
+- name: Collect files in Dovecot's configuration
+  find:
+    paths: /etc/dovecot
+    file_type: file
+  register: found_files
+
+- name: Set permissions for files
+  file:
+    path: "{{ item.path }}"
+    owner: vmail
+    group: dovecot
+    mode: '0444'
+  loop: "{{ found_files.files }}"
   notify: restart dovecot
 
-- name: Template 15-lda.conf
-  template: src=etc_dovecot_conf.d_15-lda.conf.j2 dest=/etc/dovecot/conf.d/15-lda.conf
-  notify: restart dovecot
+- name: Configure postfix to use Dovecot
+  blockinfile:
+    path: /etc/postfix/main.cf
+    marker: "# {mark} ANSIBLE - Dovecot configuration"
+    prepend_newline: true
+    insertafter: EOF
+    block: |
+      virtual_transport = lmtp:unix:private/dovecot-lmtp
+      mailbox_transport = lmtp:unix:private/dovecot-lmtp
+      dovecot_destination_recipient_limit = 1
+      virtual_mailbox_domains = pgsql:/etc/postfix/pgsql-virtual-mailbox-domains.cf
+      virtual_mailbox_maps = pgsql:/etc/postfix/pgsql-virtual-mailbox-maps.cf
+      virtual_alias_maps = pgsql:/etc/postfix/pgsql-virtual-alias-maps.cf
+      local_recipient_maps = $virtual_mailbox_maps
+  notify: restart postfix
 
-- name: Template 20-imap.conf
-  template: src=etc_dovecot_conf.d_20-imap.conf.j2 dest=/etc/dovecot/conf.d/20-imap.conf
-  notify: restart dovecot
+- name: Ensure SASL authentication is required
+  blockinfile:
+    path: /etc/postfix/main.cf
+    marker: "# {mark} ANSIBLE - SASL authentication"
+    prepend_newline: true
+    insertafter: EOF
+    block: |
+      smtpd_sasl_auth_enable = yes
+      smtpd_sasl_security_options = noanonymous
+      smtpd_sasl_local_domain = $myhostname
+      broken_sasl_auth_clients = yes
+  notify: restart postfix
 
-- name: Template dovecot-sql.conf.ext
-  template: src=etc_dovecot_dovecot-sql.conf.ext.j2 dest=/etc/dovecot/dovecot-sql.conf.ext
-  notify: restart dovecot
+- name: Configure dovecot service
+  blockinfile:
+    path: /etc/postfix/master.cf
+    marker: "# {mark} ANSIBLE - Dovecot configuration"
+    prepend_newline: true
+    insertafter: EOF
+    block: |
+      dovecot   unix  -       n       n       -       -       pipe
+        flags=DRhu user=vmail:vmail argv=/usr/lib/dovecot/lmtp -f ${sender} -d ${user}@${nexthop}
+  notify: restart postfix
 
-- name: Ensure correct permissions on Dovecot config directory
-  file: state=directory path=/etc/dovecot
-          group=dovecot owner=vmail mode=0770 recurse=yes
-  notify: restart dovecot
+- name: Have certbot reload dovecot on certificate renewal
+  copy:
+    dest: /etc/letsencrypt/renewal-hooks/deploy/reload-dovecot.sh
+    content: |
+      #!/bin/bash
+      systemctl reload dovecot
+    owner: root
+    group: root
+    mode: '0755'
 
 - name: Set firewall rules for dovecot
   ufw: rule=allow port={{ item }} proto=tcp
@@ -80,11 +322,3 @@
     - imaps
     - pop3s
   tags: ufw
-
-- name: Update post-certificate-renewal task
-  copy:
-    content: "#!/bin/bash\n\nservice dovecot restart\n"
-    dest: /etc/letsencrypt/postrenew/dovecot.sh
-    mode: 0755
-    owner: root
-    group: root

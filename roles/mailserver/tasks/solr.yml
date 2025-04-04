@@ -16,3 +16,18 @@
 - name: Create Solr index directory
   file: state=directory path=/decrypted/solr group=tomcat8 owner=tomcat8
   notify: restart solr
+
+- name: Configure dovecot plugin settings
+  blockinfile:
+    path: /etc/dovecot/conf.d/90-plugin.conf
+    marker: "# {mark} ANSIBLE - Solr Configuration"
+    prepend_newline: true
+    insertafter: EOF
+    block: |
+      plugin {
+        # FTS (full text search with Solr)
+        fts = solr
+        fts_solr = break-imap-search url=http://localhost:8080/solr/
+      }
+  notify: restart dovecot
+

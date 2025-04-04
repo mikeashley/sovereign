@@ -55,5 +55,36 @@
     chdir: /var/lib/rspamd/dkim/
   with_items: "{{ mail_virtual_domains }}"
 
+- name: Configure dovecot antispam settings
+  copy:
+    dest: /etc/dovecot/conf.d/90-antispam.conf
+    content: |
+      protocol imap {
+        mail_plugins = $mail_plugins antispam
+      }
+      plugin {
+          antispam_backend = pipe
+          antispam_spam    = Junk
+          antispam_trash   = Trash
+          antispam_mail_sendmail = /usr/bin/rspamc
+          antispam_mail_spam     = learn_spam
+          antispam_mail_notspam  = learn_ham
+          antispam_mail_sendmail_args = -h;localhost:11334
+      }
+    owner: root
+    group: root
+    mode: '0644'
+  notify: restart dovecot
+
+
+# Milters: Rspamd
+#smtpd_milters = inet:127.0.0.1:11332
+#non_smtpd_milters = $smtpd_milters
+#milter_protocol = 6
+#milter_mail_macros = i {mail_addr} {client_addr} {client_name} {auth_authen} {auth_type}
+#milter_default_action = accept
+#
+#smtpd_client_restrictions = permit_sasl_authenticated
+
 - name: Start redis
   service: name=redis-server state=started

@@ -1,15 +1,15 @@
-- include: postfix.yml
+- import_tasks: postfix.yml
   tags: postfix
-- include: dovecot.yml
-  tags: dovecot
-- include: rspamd.yml
-  tags: rspamd
-- include: solr.yml
-  tags: solr
-- include: checkrbl.yml
-  tags: checkrbl
-- include: z-push.yml
-  tags: zpush
-- include: autoconfig.yml
-  tags: autoconfig
+#- import_tasks: dovecot.yml
+#  tags: dovecot
+#- include: rspamd.yml
+#  tags: rspamd
+#- include: solr.yml
+#  tags: solr
+#- include: checkrbl.yml
+#  tags: checkrbl
+#- include: z-push.yml
+#  tags: zpush
+#- include: autoconfig.yml
+#  tags: autoconfig
 

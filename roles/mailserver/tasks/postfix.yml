@@ -1,13 +1,14 @@
 - name: Install Postfix and related packages
-  apt: pkg={{ item }} state=installed
+  apt: pkg={{ item }} state=present
   with_items:
-    - libsasl2-modules
     - postfix
     - postfix-pcre
     - postfix-pgsql
-    - postgrey
-    - python-psycopg2
     - sasl2-bin
+    - libsasl2-modules
+#    - postgrey
+# python3-psycopg2 was installed by the postgres tasks
+#    - python-psycopg2
   tags:
     - dependencies
 
@@ -19,25 +20,10 @@
   postgresql_db: login_host=localhost login_user={{ db_admin_username }} login_password="{{ db_admin_password }}" name={{ mail_db_database }} state=present owner={{ mail_db_username }}
   notify: import sql postfix
 
+# TODO: Fix reporting changed every time because of hashed password change
 - name: Copy import.sql
   template: src=mailserver.sql.j2 dest=/etc/postfix/import.sql owner=root group=root mode=0600
   notify: import sql postfix
-
-- name: Create postfix maps directory
-  file: path=/etc/postfix/maps state=directory owner=root group=root
-  when: mail_header_privacy == 1
-
-- name: Copy smtp_header_checks.pcre
-  copy: src=etc_postfix_maps_smtp_header_checks.pcre dest=/etc/postfix/maps/smtp_header_checks.pcre owner=root group=root
-  when: mail_header_privacy == 1
-
-- name: Copy main.cf
-  template: src=etc_postfix_main.cf.j2 dest=/etc/postfix/main.cf owner=root group=root
-  notify: restart postfix
-
-- name: Copy master.cf
-  copy: src=etc_postfix_master.cf dest=/etc/postfix/master.cf owner=root group=root
-  notify: restart postfix
 
 - name: Copy additional postfix configuration files
   template: src=etc_postfix_{{ item }}.j2 dest=/etc/postfix/{{ item }} owner=root group=root
@@ -46,6 +32,192 @@
     - pgsql-virtual-mailbox-domains.cf
     - pgsql-virtual-mailbox-maps.cf
   notify: restart postfix
+
+- name: Add general settings
+  blockinfile:
+    path: /etc/postfix/main.cf
+    marker: "# {mark} ANSIBLE - General setting overrides"
+    prepend_newline: true
+    insertafter: EOF
+    block: |
+      myhostname = {{ mail_server_hostname }}
+  notify: restart postfix
+
+- name: Ensure open relaying is prevented
+  blockinfile:
+    path: /etc/postfix/main.cf
+    marker: "# {mark} ANSIBLE - Open relay protection"
+    prepend_newline: true
+    insertafter: EOF
+    block: |
+      smtpd_recipient_restrictions =
+          permit_mynetworks,
+          permit_sasl_authenticated,
+          reject_unauth_destination,
+          reject_unauth_pipelining,
+          reject_unauth_destination,
+          reject_invalid_hostname,
+          reject_non_fqdn_hostname,
+          reject_non_fqdn_recipient,
+          reject_unknown_recipient_domain,
+          permit
+      mynetworks = 127.0.0.0/8 [::ffff:127.0.0.0]/104 [::1]/128 {{ ' '.join(friendly_networks) }}
+  notify: restart postfix
+
+- name: Configure antispam
+  blockinfile:
+    path: /etc/postfix/main.cf
+    marker: "# {mark} ANSIBLE - Antispam"
+    prepend_newline: true
+    insertafter: EOF
+    block: |
+      smtpd_helo_required = yes
+      smtpd_helo_restrictions = permit_mynetworks, reject_invalid_hostname
+      smtpd_sender_restrictions = reject_unknown_address
+      disable_vrfy_command = yes
+      strict_rfc821_envelopes = yes
+      invalid_hostname_reject_code = 554
+      multi_recipient_bounce_reject_code = 554
+      non_fqdn_reject_code = 554
+      relay_domains_reject_code = 554
+      unknown_address_reject_code = 554
+      unknown_client_reject_code = 554
+      unknown_hostname_reject_code = 554
+      unknown_local_recipient_reject_code = 554
+      unknown_relay_recipient_reject_code = 554
+      unknown_virtual_alias_reject_code = 554
+      unknown_virtual_mailbox_reject_code = 554
+      unverified_recipient_reject_code = 554
+      unverified_sender_reject_code = 554
+  notify: restart postfix
+
+- name: Get a certificate from certbot
+  command: certbot certonly -n --apache -d "mail.{{ domain }}"
+    creates=/etc/letsencrypt/live/mail.{{ domain }}/privkey.pem
+
+- name: Have certbot restart postfix on certificate renewal
+  copy:
+    dest: /etc/letsencrypt/renewal-hooks/deploy/reload-postfix.sh
+    content: |
+      #!/bin/bash
+      systemctl reload postfix
+    owner: root
+    group: root
+    mode: '0755'
+  
+- name: Generate a 2048 Diffie-Hellman key
+  command: openssl dhparam -out {{ mail_dhparam_path }} 2048
+    creates={{ mail_dhparam_path }}
+  notify: restart postfix
+
+- name: Set correct permissions and ownership on DH file
+  file:
+    path: /etc/ssl/private/dhparam2048.pem
+    owner: root
+    group: ssl-cert
+    mode: '0640'
+
+- name: Enable TLS for encryption
+  blockinfile:
+    path: /etc/postfix/main.cf
+    marker: "# {mark} ANSIBLE - TLS configuration"
+    prepend_newline: true
+    insertafter: EOF
+    block: |
+      smtpd_tls_cert_file = /etc/letsencrypt/live/mail.{{ domain }}/fullchain.pem'
+      smtpd_tls_key_file = /etc/letsencrypt/live/mail.{{ domain }}/privkey.pem'
+      smtpd_use_tls = yes
+      smtpd_tls_security_level = may
+      smtpd_tls_auth_only = yes
+      smtpd_tls_received_header = yes
+      smtpd_tls_mandatory_protocols=!SSLv2,!SSLv3
+      smtpd_tls_protocols = !SSLv2,!SSLv3
+
+      smtp_tls_security_level = may
+      smtp_tls_log_level = 2
+      smtp_tls_note_starttls_offer = yes
+      smtp_tls_mandatory_protocols=!SSLv2,!SSLv3
+      smtp_tls_protocols = !SSLv2,!SSLv3
+      # http://www.postfix.org/FORWARD_SECRECY_README.html
+      smtp_tls_ciphers = medium
+      smtpd_tls_dh1024_param_file = {{ mail_dhparam_path }}
+  notify: restart postfix
+
+- name: Create postfix maps directory
+  file:
+    path: /etc/postfix/maps
+    state: directory
+    owner: root
+    group: root
+  when: mail_header_privacy == 1
+
+- name: Copy smtp_header_checks.pcre
+  copy:
+    src: etc_postfix_maps_smtp_header_checks.pcre
+    dest: /etc/postfix/maps/smtp_header_checks.pcre
+    owner: root
+    group: root
+  when: mail_header_privacy == 1
+
+- name: Configure to rewrite/strip headers
+  blockinfile:
+    path: /etc/postfix/main.cf
+    marker: "# {mark} ANSIBLE - Header rewriting"
+    prepend_newline: true
+    insertafter: EOF
+    block: |
+      smtp_header_checks = pcre:/etc/postfix/maps/smtp_header_checks.pcre
+  notify: restart postfix
+  when: mail_header_privacy == 1
+
+- name: Enable postscreen
+  blockinfile:
+    path: /etc/postfix/main.cf
+    marker: "# {mark} ANSIBLE - Postscreen configuration"
+    prepend_newline: true
+    insertafter: EOF
+    block: |
+      postscreen_access_list = permit_mynetworks
+      postscreen_dnsbl_sites =
+        sbl-xbl.spamhaus.org*2
+        cbl.abuseat.org*2
+        bl.spamcop.net*2
+        dnsbl.sorbs.net*1
+        spam.spamrats.com*2
+      postscreen_dnsbl_threshold = 3
+      postscreen_dnsbl_action = enforce
+      postscreen_greet_action = enforce
+  notify: restart postfix
+
+- name: Configure smtp service to use postscreen
+  blockinfile:
+    path: /etc/postfix/master.cf
+    marker: "# {mark} ANSIBLE - SMTP with postscreen configuration"
+    prepend_newline: true
+    insertafter: EOF
+    block: |
+      smtp       inet  n       -       -       -       1       postscreen
+  notify: restart postfix
+
+- name: Configure submission service
+  blockinfile:
+    path: /etc/postfix/master.cf
+    marker: "# {mark} ANSIBLE - Submission service configuration"
+    prepend_newline: true
+    insertafter: EOF
+    block: |
+      submission inet  n       -       -       -       -       smtpd
+        -o syslog_name=postfix/submission
+        -o smtpd_tls_security_level=encrypt
+        -o smtpd_etrn_restrictions=reject
+        -o smtpd_client_restrictions=permit_sasl_authenticated,reject_unauth_destination,reject
+        -o smtpd_sasl_security_options=noanonymous,noplaintext
+        -o smtpd_sasl_tls_security_options=noanonymous
+  notify: restart postfix
+
+#- name: Copy master.cf
+#  copy: src=etc_postfix_master.cf dest=/etc/postfix/master.cf owner=root group=root
+#  notify: restart postfix
 
 - name: Set firewall rules for postfix
   ufw: rule=allow port={{ item }} proto=tcp
