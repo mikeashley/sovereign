@@ -1,7 +1,7 @@
 - import_tasks: postfix.yml
   tags: postfix
-#- import_tasks: dovecot.yml
-#  tags: dovecot
+- import_tasks: dovecot.yml
+  tags: dovecot
 #- include: rspamd.yml
 #  tags: rspamd
 #- include: solr.yml
