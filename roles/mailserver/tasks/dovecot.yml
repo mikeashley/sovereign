@@ -43,8 +43,8 @@
     insertafter: EOF
     block: |
       ssl = required
-      ssl_cert = /etc/letsencrypt/live/mail.{{ domain }}/fullchain.pem
-      ssl_key = /etc/letsencrypt/live/mail.{{ domain }}/privkey.pem
+      ssl_cert = </etc/letsencrypt/live/mail.{{ domain }}/fullchain.pem
+      ssl_key = </etc/letsencrypt/live/mail.{{ domain }}/privkey.pem
       ssl_min_protocol = TLSv1.2
   notify: restart dovecot
 
