@@ -167,12 +167,9 @@
   notify: restart dovecot
 
 - name: Configure dovecot auth-sql settings
-  blockinfile:
-    path: /etc/dovecot/conf.d/auth-sql.conf.ext
-    marker: "# {mark} ANSIBLE - Configuration"
-    prepend_newline: true
-    insertafter: EOF
-    block: |
+  copy:
+    dest: /etc/dovecot/conf.d/auth-sql.conf.ext
+    content: |
       passdb {
         driver = sql
         args = /etc/dovecot/dovecot-sql.conf.ext
@@ -181,6 +178,9 @@
         driver = static
         args = uid=vmail gid=vmail home=/decrypted/%d/%n
       }
+    owner: root
+    group: root
+    mode: '0644'
   notify: restart dovecot
 
 - name: Configure dovecot SQL settings
