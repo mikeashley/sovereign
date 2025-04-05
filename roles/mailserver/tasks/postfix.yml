@@ -12,6 +12,10 @@
   tags:
     - dependencies
 
+#################################################################################
+# Database setup                                                                #
+#################################################################################
+
 - name: Create database user for mail server
   postgresql_user: login_host=localhost login_user={{ db_admin_username }} login_password="{{ db_admin_password }}" name={{ mail_db_username }} password="{{ mail_db_password }}" encrypted=yes state=present
   notify: import sql postfix
@@ -25,7 +29,7 @@
   template: src=mailserver.sql.j2 dest=/etc/postfix/import.sql owner=root group=root mode=0600
   notify: import sql postfix
 
-- name: Copy additional postfix configuration files
+- name: Copy additional postfix configuration files for using the database
   template: src=etc_postfix_{{ item }}.j2 dest=/etc/postfix/{{ item }} owner=root group=root
   with_items:
     - pgsql-virtual-alias-maps.cf
@@ -33,14 +37,46 @@
     - pgsql-virtual-mailbox-maps.cf
   notify: restart postfix
 
+#################################################################################
+# Get encryption certificates                                                   #
+#################################################################################
+
+- name: Get a certificate from certbot
+  command: certbot certonly -n --apache -d "mail.{{ domain }}"
+    creates=/etc/letsencrypt/live/mail.{{ domain }}/privkey.pem
+
+- name: Have certbot restart postfix on certificate renewal
+  copy:
+    dest: /etc/letsencrypt/renewal-hooks/deploy/reload-postfix.sh
+    content: |
+      #!/bin/bash
+      systemctl reload postfix
+    owner: root
+    group: root
+    mode: '0755'
+  
+- name: Generate a 2048 Diffie-Hellman key
+  command: openssl dhparam -out {{ mail_dhparam_path }} 2048
+    creates={{ mail_dhparam_path }}
+  notify: restart postfix
+
+- name: Set correct permissions and ownership on DH file
+  file:
+    path: /etc/ssl/private/dhparam2048.pem
+    owner: root
+    group: ssl-cert
+    mode: '0640'
+
+#################################################################################
+# Configure main.cf                                                             #
+#################################################################################
+
 - name: Add general settings
-  blockinfile:
+  lineinfile:
     path: /etc/postfix/main.cf
-    marker: "# {mark} ANSIBLE - General setting overrides"
-    prepend_newline: true
-    insertafter: EOF
-    block: |
-      myhostname = {{ mail_server_hostname }}
+    regexp: '^myhostname\s*='
+    line: "myhostname = {{ mail_server_hostname }}"
+    state: present
   notify: restart postfix
 
 - name: Ensure open relaying is prevented
@@ -91,31 +127,21 @@
       unverified_sender_reject_code = 554
   notify: restart postfix
 
-- name: Get a certificate from certbot
-  command: certbot certonly -n --apache -d "mail.{{ domain }}"
-    creates=/etc/letsencrypt/live/mail.{{ domain }}/privkey.pem
-
-- name: Have certbot restart postfix on certificate renewal
-  copy:
-    dest: /etc/letsencrypt/renewal-hooks/deploy/reload-postfix.sh
-    content: |
-      #!/bin/bash
-      systemctl reload postfix
-    owner: root
-    group: root
-    mode: '0755'
-  
-- name: Generate a 2048 Diffie-Hellman key
-  command: openssl dhparam -out {{ mail_dhparam_path }} 2048
-    creates={{ mail_dhparam_path }}
+- name: Set path to TLS certificate file
+  lineinfile:
+    path: /etc/postfix/main.cf
+    regexp: '^smtpd_tls_cert_file\s*='
+    line: "smtpd_tls_cert_file = /etc/letsencrypt/live/mail.{{ domain }}/fullchain.pem"
+    state: present
   notify: restart postfix
 
-- name: Set correct permissions and ownership on DH file
-  file:
-    path: /etc/ssl/private/dhparam2048.pem
-    owner: root
-    group: ssl-cert
-    mode: '0640'
+- name: Set path to TLS key file
+  lineinfile:
+    path: /etc/postfix/main.cf
+    regexp: '^smtpd_tls_key_file\s*='
+    line: "smtpd_tls_key_file = /etc/letsencrypt/live/mail.{{ domain }}/privkey.pem"
+    state: present
+  notify: restart postfix
 
 - name: Enable TLS for encryption
   blockinfile:
@@ -124,8 +150,6 @@
     prepend_newline: true
     insertafter: EOF
     block: |
-      smtpd_tls_cert_file = /etc/letsencrypt/live/mail.{{ domain }}/fullchain.pem'
-      smtpd_tls_key_file = /etc/letsencrypt/live/mail.{{ domain }}/privkey.pem'
       smtpd_use_tls = yes
       smtpd_tls_security_level = may
       smtpd_tls_auth_only = yes
@@ -134,7 +158,6 @@
       smtpd_tls_protocols = !SSLv2,!SSLv3
 
       smtp_tls_security_level = may
-      smtp_tls_log_level = 2
       smtp_tls_note_starttls_offer = yes
       smtp_tls_mandatory_protocols=!SSLv2,!SSLv3
       smtp_tls_protocols = !SSLv2,!SSLv3
@@ -189,23 +212,21 @@
       postscreen_greet_action = enforce
   notify: restart postfix
 
-- name: Configure smtp service to use postscreen
+#################################################################################
+# Configure master.cf                                                           #
+#################################################################################
+
+- name: Configure services
   blockinfile:
     path: /etc/postfix/master.cf
-    marker: "# {mark} ANSIBLE - SMTP with postscreen configuration"
+    marker: "# {mark} ANSIBLE - Service configuration"
     prepend_newline: true
     insertafter: EOF
     block: |
       smtp       inet  n       -       -       -       1       postscreen
-  notify: restart postfix
-
-- name: Configure submission service
-  blockinfile:
-    path: /etc/postfix/master.cf
-    marker: "# {mark} ANSIBLE - Submission service configuration"
-    prepend_newline: true
-    insertafter: EOF
-    block: |
+      smtpd      pass  -       -       -       -       -       smtpd
+      dnsblog    unix  -       -       -       -       0       dnsblog
+      tlsproxy   unix  -       -       -       -       0       tlsproxy
       submission inet  n       -       -       -       -       smtpd
         -o syslog_name=postfix/submission
         -o smtpd_tls_security_level=encrypt
@@ -214,10 +235,6 @@
         -o smtpd_sasl_security_options=noanonymous,noplaintext
         -o smtpd_sasl_tls_security_options=noanonymous
   notify: restart postfix
-
-#- name: Copy master.cf
-#  copy: src=etc_postfix_master.cf dest=/etc/postfix/master.cf owner=root group=root
-#  notify: restart postfix
 
 - name: Set firewall rules for postfix
   ufw: rule=allow port={{ item }} proto=tcp
