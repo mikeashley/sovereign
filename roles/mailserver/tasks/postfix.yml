@@ -201,12 +201,11 @@
     insertafter: EOF
     block: |
       postscreen_access_list = permit_mynetworks
-      postscreen_dnsbl_sites =
-        sbl-xbl.spamhaus.org*2
-        cbl.abuseat.org*2
-        bl.spamcop.net*2
-        dnsbl.sorbs.net*1
-        spam.spamrats.com*2
+      postscreen_dnsbl_sites = \
+        zen.spamhaus.org*2 \
+        spam.spamrats.com*1 \
+        dyna.spamrats.com*1 \
+        noptr.spamrats.com*1
       postscreen_dnsbl_threshold = 3
       postscreen_dnsbl_action = enforce
       postscreen_greet_action = enforce
