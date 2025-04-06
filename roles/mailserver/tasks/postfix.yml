@@ -6,9 +6,6 @@
     - postfix-pgsql
     - sasl2-bin
     - libsasl2-modules
-#    - postgrey
-# python3-psycopg2 was installed by the postgres tasks
-#    - python-psycopg2
   tags:
     - dependencies
 
