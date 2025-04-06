@@ -25,16 +25,116 @@
   notify: import sql postfix
 
 # TODO: Fix reporting changed every time because of hashed password change
-- name: Copy import.sql
-  template: src=mailserver.sql.j2 dest=/etc/postfix/import.sql owner=root group=root mode=0600
+- name: Set up database
+  copy:
+    dest: /etc/postfix/import.sql
+    content: |
+      -- If tables are not dropped, have to truncate before insert or use "insert or replace" (not postgres compatible)
+      
+      DROP TABLE IF EXISTS "virtual_users";
+      DROP TABLE IF EXISTS "virtual_aliases";
+      DROP TABLE IF EXISTS "virtual_domains";
+      
+      CREATE TABLE IF NOT EXISTS "virtual_domains" (
+              "id" SERIAL,
+              "name" TEXT NOT NULL,
+              PRIMARY KEY ("id")
+      );
+
+      CREATE UNIQUE INDEX name_idx ON virtual_domains (name);
+
+      CREATE TABLE IF NOT EXISTS "virtual_users" (
+              "id" SERIAL,
+              "domain_id" int NOT NULL,
+              "password" TEXT NOT NULL,
+              "email" TEXT NOT NULL UNIQUE,
+              PRIMARY KEY ("id"),
+              FOREIGN KEY (domain_id) REFERENCES virtual_domains(id) ON DELETE CASCADE
+      );
+
+
+      CREATE UNIQUE INDEX email_idx ON virtual_users (email);
+
+      CREATE TABLE IF NOT EXISTS "virtual_aliases" (
+              "id" SERIAL,
+              "domain_id" int NOT NULL,
+              "source" TEXT NOT NULL,
+              "destination" TEXT NOT NULL,
+              PRIMARY KEY ("id"),
+              FOREIGN KEY (domain_id) REFERENCES virtual_domains(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX source_idx ON virtual_aliases (source);
+
+      {% for virtual_domain in mail_virtual_domains %}
+      INSERT INTO "virtual_domains" ("id", "name")
+              VALUES ('{{ virtual_domain.pk_id }}', '{{ virtual_domain.name }}');
+      {% endfor %}
+
+      {% for virtual_user in mail_virtual_users %}
+      INSERT INTO "virtual_users"  ("domain_id", "password" , "email")
+              VALUES (
+                      '{{ virtual_user.domain_pk_id }}',
+                      '{{ virtual_user.password | doveadm_pw_hash }}',
+                      '{{ virtual_user.account }}@{{ virtual_user.domain }}'
+              );
+      {% endfor %}
+
+      {% if mail_virtual_aliases is defined %}
+      {% for virtual_alias in mail_virtual_aliases %}
+      INSERT INTO "virtual_aliases" ("domain_id", "source", "destination")
+          VALUES ('{{ virtual_alias.domain_pk_id }}', '{{ virtual_alias.source }}', '{{virtual_alias.destination }}');
+      {% endfor %}
+      {% endif %}
+    owner: root
+    group: root
+    mode: '0600'
+    backup: yes
   notify: import sql postfix
 
-- name: Copy additional postfix configuration files for using the database
-  template: src=etc_postfix_{{ item }}.j2 dest=/etc/postfix/{{ item }} owner=root group=root
-  with_items:
-    - pgsql-virtual-alias-maps.cf
-    - pgsql-virtual-mailbox-domains.cf
-    - pgsql-virtual-mailbox-maps.cf
+- name: Create virtual alias maps for Postgres
+  copy:
+    dest: /etc/postfix/pgsql-virtual-alias-maps.cf
+    content: |
+      user = {{ mail_db_username }}
+      password = {{ mail_db_password }}
+      hosts = 127.0.0.1
+      dbname = {{ mail_db_database }}
+      query = SELECT destination FROM virtual_aliases WHERE source='%s'
+    owner: root
+    group: root
+    mode: '0644'
+    backup: yes
+  notify: restart postfix
+
+- name: Create virtual mailbox maps for Postgres
+  copy:
+    dest: /etc/postfix/pgsql-virtual-mailbox-maps.cf
+    content: |
+      user = {{ mail_db_username }}
+      password = {{ mail_db_password }}
+      hosts = 127.0.0.1
+      dbname = {{ mail_db_database }}
+      query = SELECT 1 FROM virtual_users WHERE email='%s'
+    owner: root
+    group: root
+    mode: '0644'
+    backup: yes
+  notify: restart postfix
+
+- name: Create virtual mailbox domains for Postgres
+  copy:
+    dest: /etc/postfix/pgsql-virtual-mailbox-domains.cf
+    content: |
+      user = {{ mail_db_username }}
+      password = {{ mail_db_password }}
+      hosts = 127.0.0.1
+      dbname = {{ mail_db_database }}
+      query = SELECT 1 FROM virtual_domains WHERE name='%s'
+    owner: root
+    group: root
+    mode: '0644'
+    backup: yes
   notify: restart postfix
 
 #################################################################################
@@ -54,6 +154,7 @@
     owner: root
     group: root
     mode: '0755'
+    backup: yes
   
 - name: Generate a 2048 Diffie-Hellman key
   command: openssl dhparam -out {{ mail_dhparam_path }} 2048
@@ -174,12 +275,19 @@
     group: root
   when: mail_header_privacy == 1
 
-- name: Copy smtp_header_checks.pcre
+- name: Create smtp_header_checks.pcre
   copy:
-    src: etc_postfix_maps_smtp_header_checks.pcre
     dest: /etc/postfix/maps/smtp_header_checks.pcre
+    content: |
+      /^\s*(Received: from)[^\n]*(.*)/ REPLACE $1 [127.0.0.1] (localhost [127.0.0.1])$2
+      /^\s*User-Agent/        IGNORE
+      /^\s*X-Enigmail/        IGNORE
+      /^\s*X-Mailer/          IGNORE
+      /^\s*X-Originating-IP/  IGNORE
     owner: root
     group: root
+    mode: '0644'
+    backup: yes
   when: mail_header_privacy == 1
 
 - name: Configure to rewrite/strip headers

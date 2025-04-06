@@ -181,6 +181,7 @@
     owner: root
     group: root
     mode: '0644'
+    backup: yes
   notify: restart dovecot
 
 - name: Configure dovecot SQL settings
@@ -234,6 +235,7 @@
     owner: vmail
     group: dovecot
     mode: '0444'
+    backup: yes
   notify: restart dovecot
 
 - name: Collect directores in Dovecot's configuration
@@ -315,6 +317,7 @@
     owner: root
     group: root
     mode: '0755'
+    backup: yes
 
 - name: Set firewall rules for dovecot
   ufw: rule=allow port={{ item }} proto=tcp
