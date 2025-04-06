@@ -238,34 +238,17 @@
     backup: yes
   notify: restart dovecot
 
-- name: Collect directores in Dovecot's configuration
-  find:
-    paths: /etc/dovecot
-    file_type: directory
-  register: found_dirs
-
-- name: Set permissions for directories
-  file:
-    path: "{{ item.path }}"
-    owner: vmail
-    group: dovecot
-    mode: '0770'
-  loop: "{{ found_dirs.files }}"
+- name: Compile sieve script...
+  command: sievec /etc/dovecot/sieve/before.d/no-spam.sieve /etc/dovecot/sieve/before.d/no-spam.svbin
+    creates=/etc/dovecot/sieve/before.d/no-spam.svbin
   notify: restart dovecot
 
-- name: Collect files in Dovecot's configuration
-  find:
-    paths: /etc/dovecot
-    file_type: file
-  register: found_files
-
-- name: Set permissions for files
+- name: ...and set its ownership and permissions 
   file:
-    path: "{{ item.path }}"
+    path: /etc/dovecot/sieve/before.d/no-spam.svbin
     owner: vmail
     group: dovecot
     mode: '0444'
-  loop: "{{ found_files.files }}"
   notify: restart dovecot
 
 - name: Configure postfix to use Dovecot
