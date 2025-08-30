@@ -20,7 +20,7 @@ def doveadm_pw_hash(password):
     check_lib()
     if type(password) is StrictUndefined:
         raise AnsibleUndefinedVariable('Please pass a string into this password_hash-based filter')
-    return passlib.hash.sha512_crypt.encrypt(password, rounds=5000)
+    return passlib.hash.sha512_crypt.hash(password, rounds=5000)
 
 
 def znc_pw_salt(password):
