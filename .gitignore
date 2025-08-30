@@ -1,6 +1,7 @@
 .vagrant/provisioners/ansible/inventory/vagrant_ansible_inventory
 .vagrant/machines
 .vagrant/rgloader
+roles/git/files/gitolite.pub
 *.log
 *.pyc
 *.retry

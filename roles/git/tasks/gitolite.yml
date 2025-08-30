@@ -8,16 +8,9 @@
   user: name=www-data groups=git append=yes
 
 - name: Install gitolite3 package
-  apt: pkg=gitolite3 state=installed
+  apt: pkg=gitolite3 state=present
   tags:
     - dependencies
-
-- name: Copy .gitolite.rc file
-  copy: src=home_git_.gitolite.rc
-        dest=/home/git/.gitolite.rc
-        group=git
-        owner=git
-        mode=0644
 
 - name: Copy SSH public key to server
   copy: src=gitolite.pub
@@ -30,3 +23,15 @@
   become_user: git
   command: gitolite setup -pk {{ main_user_name }}.pub
            chdir=/home/git
+
+- name: Update git config keys for gitweb
+  lineinfile:
+    path: /home/git/.gitolite.rc
+    regexp: '^\s*GIT_CONFIG_KEYS'
+    line: "    GIT_CONFIG_KEYS                 =>  'gitweb\\.(owner|description|category)',"
+    state: present
+
+- name: Get a certificate from certbot
+  command: certbot certonly -n --apache -d "git.{{ domain }}"
+    creates=/etc/letsencrypt/live/git.{{ domain }}/privkey.pem
+

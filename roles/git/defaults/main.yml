@@ -1,2 +1,2 @@
-cgit_version: 1.2.1
+cgit_version: 1.2.3
 cgit_domain: "git.{{ domain }}"
