@@ -4,8 +4,8 @@
   tags: mailusers
 - import_tasks: dovecot.yml
   tags: dovecot
-#- include: rspamd.yml
-#  tags: rspamd
+- import_tasks: rspamd.yml
+  tags: rspamd
 #- include: solr.yml
 #  tags: solr
 #- include: checkrbl.yml
