@@ -6,3 +6,4 @@ roles/git/files/gitolite.pub
 *.pyc
 *.retry
 secret
+roles/git/files/gitolite.pub
