@@ -1,7 +1,7 @@
-- import_tasks: database.yml
-  tags: mailusers
 - import_tasks: postfix.yml
   tags: postfix
+- import_tasks: database.yml
+  tags: mailusers
 - import_tasks: dovecot.yml
   tags: dovecot
 #- include: rspamd.yml
