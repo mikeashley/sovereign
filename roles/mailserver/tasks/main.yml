@@ -12,6 +12,6 @@
 #  tags: checkrbl
 #- include: z-push.yml
 #  tags: zpush
-#- include: autoconfig.yml
-#  tags: autoconfig
+- import_tasks: autoconfig.yml
+  tags: autoconfig
 

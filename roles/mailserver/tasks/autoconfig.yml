@@ -2,7 +2,10 @@
 #
 # Autoconfig XML file for email clients
 # https://developer.mozilla.org/en-US/docs/Mozilla/Thunderbird/Autoconfiguration
-#
+
+- name: Get a certificate from certbot
+  command: certbot certonly -n --apache -d "{{ mail_server_autoconfig_hostname }}"
+    creates=/etc/letsencrypt/live/{{ mail_server_autoconfig_hostname }}/privkey.pem
 
 - name: Create directory for mail autoconfiguration virtualhost
   file: state=directory path=/var/www/autoconfig group=www-data owner=root
