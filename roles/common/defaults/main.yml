@@ -2,8 +2,6 @@
 common_timezone: 'Etc/UTC'
 admin_email: "{{ main_user_name }}@{{ domain }}"
 main_user_shell: "/bin/bash"
-friendly_networks:
-  - ""
 
 # postgres
 db_admin_password: "{{ lookup('password', secret + '/' + 'db_admin_password', length=32) }}"

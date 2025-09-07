@@ -7,6 +7,8 @@
 domain: (required)
 main_user_name: (required)
 organization: (required)
+friendly_networks:
+  - ""
 
 # password storage
 secret_root: '{{ inventory_dir | realpath }}'
