@@ -1,20 +1,37 @@
 - name: Get a certificate from certbot
   command: certbot certonly -n --apache -d "www.{{ domain }}"
-    creates=/etc/letsencrypt/live/www.{{ domain }}/privkey.pem
+  args:
+    creates: /etc/letsencrypt/live/www.{{ domain }}/privkey.pem
 
 - name: Create directory for blog HTML
-  file: state=directory path=/var/www/{{ domain }} group=www-data owner={{ main_user_name }}
+  file:
+    state: directory
+    path: /var/www/{{ domain }}
+    group: www-data
+    owner: "{{ main_user_name }}"
+    mode: '0755'
 
-- name: Disable default virtualhost for Apache
-  command: a2dissite 000-default-le-ssl
-
-- name: Disable this virtualhost if it already exists
-  command: a2dissite {{ domain }} 
+- name: Remove default Apache virtualhost symlink
+  file:
+    state: absent
+    path: /etc/apache2/sites-enabled/000-default-le-ssl.conf
 
 - name: Configure the Apache HTTP server for the blog
-  template: src=etc_apache2_sites-available_blog.j2 dest=/etc/apache2/sites-available/{{ domain }}.conf group=root owner=root
+  template:
+    src: etc_apache2_sites-available_blog.j2
+    dest: /etc/apache2/sites-available/{{ domain }}.conf
+    owner: root
+    group: root
+    mode: '0644'
 
-- name: Enable blog site
-  command: a2ensite {{ domain }} creates=/etc/apache2/sites-enabled/{{ domain }}.conf
-  notify: restart apache
+- name: Enable blog site via symlink
+  file:
+    state: link
+    src: /etc/apache2/sites-available/{{ domain }}.conf
+    dest: /etc/apache2/sites-enabled/{{ domain }}.conf
+  notify: restart apache2
+
+- name: Validate Apache configuration
+  command: apache2ctl configtest
+  changed_when: false
 
