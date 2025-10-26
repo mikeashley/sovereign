@@ -10,7 +10,7 @@
     - common
     - mailserver
 #    - webmail
-#    - blog
+    - blog
     - ircbouncer
 #    - xmpp
 #    - owncloud

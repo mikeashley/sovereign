@@ -1,2 +1,2 @@
-- include: blog.yml
+- import_tasks: blog.yml
   tags: blog
