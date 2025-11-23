@@ -1,7 +1,7 @@
 - name: Install encfs & fuse
   apt: pkg={{ item }} state=present
   with_items:
-    - encfs
+    - gocryptfs
     - fuse
     - libfuse-dev
   tags:
@@ -17,12 +17,13 @@
   register: encfs_check
 
 - name: If /encrypted is empty, create the encfs there
-  shell: printf "p\n{{ encfs_password }}" | encfs /encrypted /decrypted --public --stdinpass && touch /decrypted/test
+  shell: printf '{{ encfs_password }}' | gocryptfs --init /encrypted
   when: encfs_check.rc > 0
 
-- name: If /encrypted isn't empty, mount it (but only if /decrypted/test doesn't exist)
-  shell: command="printf '{{ encfs_password }}' | encfs /encrypted /decrypted --public --stdinpass" creates="/decrypted/test"
+- name: If /encrypted isn't empty, mount it
+  shell: printf '{{ encfs_password }}' | gocryptfs -allow-other /encrypted /decrypted
   when: encfs_check.rc == 0
 
 - name: Set decrypted directory permissions
   file: state=directory path=/decrypted group=mail mode=0775
+

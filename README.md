@@ -198,13 +198,28 @@ If you run into an errors, please check the [wiki page](https://github.com/sover
 
 ### Reboots
 
-You will need to manually enter the password for any encrypted volumes on reboot. This is not Sovereign-specific, but rather a function of how EncFS works. This will necessitate SSHing into your machine after reboot, or accessing it via a console interface if one is available to you. Once you're in, run this:
+You will need to manually enter the password for any encrypted volumes
+on reboot. This is not Sovereign-specific, but rather a function of how
+gocryptfs works. This will necessitate SSHing into your machine after
+reboot, or accessing it via a console interface if one is available to
+you. Once you're in, run this:
 
-    encfs /encrypted /decrypted --public
+    gocryptfs -allow_other /encrypted /decrypted 
 
-It is possible that some daemons may need to be restarted after you enter your password for the encrypted volume(s). Some services may stall out while looking for resources that will only be available once the `/decrypted` volume is available and visible to daemon user accounts.
+It is possible that some services (`postifx`, `dovecot`) may need to be
+restarted after you enter your password for the encrypted volume(s). Some
+services may stall out while looking for resources that will only be
+available once the `/decrypted` volume is available and visible to daemon
+user accounts.
 
 IRC
 ===
 
-Ask questions and provide feedback in `#sovereign` on [Freenode](http://freenode.net).
+Ask questions and provide feedback in `#sovereign` on [Libera.Chat](http://libera.chat).
+
+
+Other stuff
+===========
+1. Set friendly_networks to your IP address, which you can find with
+`curl ipconfig.me`. This IP number is ignored by `fail2ban`.
+
