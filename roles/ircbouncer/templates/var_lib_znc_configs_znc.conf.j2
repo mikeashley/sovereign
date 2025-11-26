@@ -28,6 +28,7 @@ Version = 1.8.2
 	IPv4 = true
 	IPv6 = true
 	SSL  = true
+	URIPrefix = /
 </Listener>
 
 <Listener listener1>
@@ -56,11 +57,25 @@ Version = 1.8.2
 
   {{ irc_password | znc_makepass }}
 
-	<Network freenode>
-	  LoadModule = kickrejoin
-    LoadModule = nickserv
-    LoadModule = savebuff
-    Server     = chat.freenode.net +6697
+	<Network LiberaChat>
+		Encoding = ^UTF-8
+		FloodBurst = 9
+		FloodRate = 2.00
+		IRCConnectEnabled = true
+		JoinDelay = 0
+		LoadModule = kickrejoin
+		LoadModule = nickserv
+		LoadModule = savebuff
+		LoadModule = simple_away
+		LoadModule = sasl
+		Server = irc.libera.chat +6697
+		TrustAllCerts = false
+		TrustPKI = true
+
+		<Chan #sovereign>
+      AutoClearChanBuffer = false
+      Buffer = 200
+		</Chan>
 	</Network>
 </User>
 
