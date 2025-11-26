@@ -15,7 +15,7 @@
 #    - xmpp
 #    - owncloud
 #    - vpn
-#    - tarsnap
+    - tarsnap
 #    - news
     - git
 #    - readlater
